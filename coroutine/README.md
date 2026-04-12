@@ -96,3 +96,118 @@ def middle(key):
 #   等价于 result = yield from coroutine()
 #   Event Loop 通过这座桥，直接操作最底层真正在等待的 IO
 ```
+
+# ── StopIteration 总结 ───────────────────
+
+# ★ 规则1：生成器函数执行完毕就会抛出 StopIteration
+#
+#   普通函数执行完毕 → 正常 return，没有异常
+#   生成器函数执行完毕 → 抛出 StopIteration   ← 这是生成器的规则
+#
+#   触发条件：只要是生成器函数，遇到以下情况就抛 StopIteration
+#     1. 函数执行到末尾（隐式 return None）
+#     2. 遇到显式 return（return 值会附带在 StopIteration.value 里）
+#
+def gen():
+    yield 1
+    yield 2
+    # 函数到头，没有更多代码 → StopIteration
+    # 和有没有 yield from 无关，是生成器函数本身的规则
+
+# ★ 规则2：for...in 内部隐藏了 StopIteration 的捕获
+#
+#   你写的：
+#   for val in gen():
+#       print(val)
+#
+#   等价于：
+gen = gen()
+while True:
+    try:
+        val = next(gen)   # 推进生成器
+        print(val)
+    except StopIteration: # ← 隐式捕获，生成器结束时自动退出循环
+        break             #   return 值在这里被丢弃，拿不到
+
+# ★ 注意：for...in 拿不到 return 值
+#   生成器的 return 值附带在 StopIteration.value 里
+#   但 for...in 捕获后直接 break，不处理 .value
+#   想拿到 return 值，只能手动捕获：
+g = gen()
+try:
+    while True:
+        print(next(g))
+except StopIteration as e:
+    print(e.value)        # 这里才能拿到 return 值
+
+```python
+# ── StopIteration 总结 ───────────────────
+
+# ★ 规则1：生成器函数执行完毕就会抛出 StopIteration
+#
+#   普通函数执行完毕 → 正常 return，没有异常
+#   生成器函数执行完毕 → 抛出 StopIteration   ← 这是生成器的规则
+#
+#   触发条件：只要是生成器函数，遇到以下情况就抛 StopIteration
+#     1. 函数执行到末尾（隐式 return None）
+#     2. 遇到显式 return（return 值会附带在 StopIteration.value 里）
+#
+def gen():
+    yield 1
+    yield 2
+    # 函数到头，没有更多代码 → StopIteration
+    # 和有没有 yield from 无关，是生成器函数本身的规则
+
+
+# ★ 规则2：for...in 内部隐藏了 StopIteration 的捕获
+#
+#   你写的：
+#   for val in gen():
+#       print(val)
+#
+#   等价于：
+gen = gen()
+while True:
+    try:
+        val = next(gen)  # 推进生成器
+        print(val)
+    except StopIteration:  # ← 隐式捕获，生成器结束时自动退出循环
+        break  # return 值在这里被丢弃，拿不到
+
+# ★ 注意：for...in 拿不到 return 值
+#   生成器的 return 值附带在 StopIteration.value 里
+#   但 for...in 捕获后直接 break，不处理 .value
+#   想拿到 return 值，只能手动捕获：
+g = gen()
+try:
+    while True:
+        print(next(g))
+except StopIteration as e:
+    print(e.value)  # 这里才能拿到 return 值
+
+# ★ 两种触发 StopIteration 的方式
+#
+#   方式1：send/next 推进后找不到下一个 yield
+#   def gen():
+#       yield 1
+#       # 没有更多 yield，下次 next() → StopIteration
+#
+#   方式2：函数执行完毕自然结束（即使最后一行不是 yield）
+#   def outer():
+#       result = yield from sub()
+#       print(result)
+#       # 函数到头 → StopIteration，不是因为 yield from，是生成器函数的规则
+
+# ★ 两层捕获的例子（yield from + for...in）
+#   def sub():
+#       yield 1
+#       return "done"
+#
+#   def outer():
+#       result = yield from sub()  # 第一层：yield from 捕获 sub 的 StopIteration
+#       print(result)              #          把 "done" 赋给 result，outer 继续执行
+#                                  # outer 函数结束 → 抛出 StopIteration
+#
+#   for val in outer():            # 第二层：for...in 捕获 outer 的 StopIteration
+#       print(val)                 #          break，循环结束，return 值丢弃
+```
